@@ -17,15 +17,33 @@ $languages = array_unique(array_column($variants, 'language'));
 if (empty($variants)) die("Karte nicht gefunden.");
 $card = $variants[0];
 
-// Fetch card image and details from PTCG API
-$api_url = 'https://api.tcgdex.net/v2/en/cards/' . urlencode($card['ptcg_id']);
-$ch = curl_init($api_url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-curl_setopt($ch, CURLOPT_HTTPHEADER, ['User-Agent: pokemon-shop/1.0']);
-$api_data = curl_exec($ch);
-$api_card = json_decode($api_data, true)?? null;
+$in_stock = array_values(array_filter($variants, fn($v) => $v['quantity'] > 0));
+$sell_default = $in_stock[0] ?? null;
 
+
+// Fetch card image and details from PTCG API
+function fetch_tcgdex_card(string $id, array $langs): ?array{
+    foreach ($langs as $lang){
+        $ch = curl_init("https://api.tcgdex.net/v2/$lang/cards/" . urlencode($id));
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_HTTPHEADER     => ['User-Agent: pokemon-shop/1.0'],
+        ]);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if ($body !== false && $code === 200){
+            $data = json_decode($body, true);
+            if(!empty($data['image'])){
+                return $data;
+            }
+        }
+    }
+    return null;
+}
+
+$api_card = fetch_tcgdex_card($card['ptcg_id'], ['de', 'en']);
 
 // Chart 1 Profit over time
 $stmt = $pdo->prepare("
@@ -114,7 +132,7 @@ require_once 'includes/header.php';
 
     <!-- Card image -->
     <div style="display:flex; gap: 32px; align-items:flex-start;">
-        <?php if ($api_card && isset($api_card['image'])): ?>
+        <?php if ($api_card): ?>
             <img src="<?= htmlspecialchars($api_card['image'] . '/high.png') ?>" 
                  alt="<?= htmlspecialchars($card['name']) ?>"
                  style="width:280px; border-radius:12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
@@ -128,62 +146,67 @@ require_once 'includes/header.php';
     <!-- Card details -->
     <div style="display:flex; flex-direction:column;">
         <h1><?= htmlspecialchars($card['name']) ?></h1>
-        <p style="color:#f5a623; margin-bottom:24px;"><?= htmlspecialchars($card['set_name']) ?></p>
+        <p style="color:#f5a623; margin-bottom:24px;"><?= htmlspecialchars($card['set_name'] ?? '') ?></p>
 
         <table style="width:auto; box-shadow:none;">
             <tr><td><strong>PTCG ID</strong></td><td><?= htmlspecialchars($card['ptcg_id']) ?></td></tr>
-            <tr><td><strong>Rarität</strong></td><td><?= htmlspecialchars($card['rarity']) ?></td></tr>
+            <tr><td><strong>Rarität</strong></td><td><?= htmlspecialchars($card['rarity'] ?? '') ?></td></tr>
             <tr><td><strong>Sprache</strong></td><td><?= htmlspecialchars(implode(', ', $languages)) ?></td></tr>
             <tr><td><strong>Menge</strong></td><td><?= (int)$total_quantity ?></td></tr>
             <tr>
-                <td valign="top"><strong>Zustand</strong></td>
+                <td valign="top"><strong>Bestand</strong></td>
                 <td>
+                    <?php if ($in_stock): ?>
                     <table style="width:auto; box-shadow:none; margin:0;">
                         <?php foreach ($variants as $v): ?>
-                            <?php if ($v['quantity'] > 0): ?>
                             <tr>
-                                <td style="padding:2px 12px 2px 0;"><?= htmlspecialchars($v['card_condition']) ?></td>
-                                <td style="padding:2px 0;"><?= (int)$v['quantity'] ?> St.</td>
+                                <td style="padding:2px 12px 2px 0;"><?= htmlspecialchars($v['card_condition']) ?> · <?= htmlspecialchars($v['language']) ?></td>
+                                <td style="padding:2px 12px 2px 0;"><?= (int)$v['quantity'] ?> St.</td>
+                                <td style="padding: 2px 0; white-space:nowrap;">
+                                    <a href="edit_card.php?id=<?= (int)$v['id'] ?>" class="btn btn-primary">Bearbeiten</a>
+                                    <a href="delete_card.php?id=<?= (int)$v['id'] ?>" class="btn btn-danger">Entfernen</a>
+                                </td>
                             </tr>
-                            <?php endif; ?>
                         <?php endforeach; ?>
                     </table>
+                    <?php else: ?>
+                        Nicht auf Lager
+                    <?php endif; ?>
                 </td>
             </tr>
-
         </table>
-        <div style="margin-top:auto; padding-top:16px; display:flex; gap:12px;">
-            <a href="edit_card.php?id=<?= $v['id'] ?>" class="btn btn-primary">Bearbeiten</a>
-            <a href="delete_card.php?id=<?= $v['id'] ?>" class="btn btn-danger">Löschen</a>
-        </div>
     </div>
-    
+
+    <!-- Sell form -->
     <div style="display:flex; flex-direction:column;">
         <h3 style="margin-bottom: 26px;">Karte verkaufen</h3>
+
+        <?php if ($sell_default): ?>
         <form id="sell-form" method="POST" action="sell_card.php">
-            <label>Zustand:
-                <select name="card_id" onchange="updatePrice(this)">
-                    <?php foreach ($variants as $v): ?>
-                        <?php if ($v['quantity'] > 0): ?>
-                        <option value="<?= $v['id'] ?>" 
-                                data-price="<?= $v['sell_price'] ?>"
-                                data-max="<?= $v['quantity'] ?>">
-                            <?= htmlspecialchars($v['card_condition']) ?> (<?= $v['quantity'] ?> St.)
+            <label>Variante:
+                <select name="card_id" id="sell_variant" onchange="updatePrice()">
+                    <?php foreach ($in_stock as $v): ?>
+                        <option value="<?=  (int)$v['id'] ?>"
+                                data-price="<?= htmlspecialchars($v['sell_price']) ?>"
+                                data-buy="<?= htmlspecialchars($v['buy_price']) ?>"
+                                data-margin="<?= htmlspecialchars($v['margin']) ?>"
+                                data-max="<?= (int)$v['quantity'] ?>">
+                                <?= htmlspecialchars($v['card_condition']) ?> · <?= htmlspecialchars($v['language']) ?> (<?= (int)$v['quantity'] ?> St.)
                         </option>
-                        <?php endif; ?>
                     <?php endforeach; ?>
                 </select>
             </label>
+
             <label>Menge:
-                <input type="number" name="quantity" value="1" min="1" max="<?= (int)$card['quantity'] ?>">
+                <input type="number" name="quantity" id="sell_quantity" value="1" min="1" max="<?= (int)$sell_default['quantity'] ?>">
             </label>
 
             <label>Verkaufspreis (€):
-                <input type="text" name="sold_price" value="<?= number_format($card['sell_price'], 2, ',', '.') ?>">
+                <input type="text" name="sold_price" id="sold_price" value="<?= number_format($sell_default['sell_price'], 2, ',', '') ?>">
             </label>
 
             <label>Gewinn Marge (%):
-                <input type="number" name="margin" value="<?= (int)$card['margin'] ?>">
+                <input type="number" id="sell_margin" value="<?= (int)$sell_default['margin'] ?> "oninput="recalcFromMargin()">
             </label>
 
             <label>Plattform:
@@ -199,6 +222,9 @@ require_once 'includes/header.php';
                 <button type="submit" class="btn btn-primary">Verkauf erfassen</button>
             </div>
         </form>
+        <?php else: ?>
+            <p>Nicht auf Lager. </p>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -232,22 +258,11 @@ const gold = '#f5a623';
 const gridColor = 'rgba(255,255,255,0.07)';
 const tickColor = '#888';
 
-const baseOptions = {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-        x: {
-            type: 'time',
-            time: { tooltipFormat: 'dd.MM.yyyy HH:mm' },
-            ticks: { color: tickColor },
-            grid: { color: gridColor }
-        },
-        y: {
-            ticks: { color: tickColor },
-            grid: { color: gridColor }
-        }
-    }
-};
+function updatePrice(select){
+    const opt = select.options[select.selectedIndex];
+    document.getElementById('sold_price').value = parseFloat(opt.dataset.price).toFixed(2).replace('.', ',');
+    document.getElementById('quantity').max = opt.dataset.max;
+}
 
 function makeLine(id, data, label, color) {
     if (!data || data.length === 0) return;
@@ -277,17 +292,34 @@ function makeLine(id, data, label, color) {
         }
     });
 }
+
 function formatDate(str) {
     if (!str) return '';
     const d = new Date(str);
     return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
-function updatePrice(select) {
-    const opt = select.options[select.selectedIndex];
-    document.getElementById('sold_price').value = 
-        parseFloat(opt.dataset.price).toFixed(2).replace('.', ',');
-    document.getElementById('quantity').max = opt.dataset.max;
+//Sell form
+function selectedVariant() {
+    return document.getElementById('sell_variant').selectedOptions[0];
+}
+
+function fromatPrice(n){
+    return n.toFixed(2).replace('.', ',');
+}
+
+function updatePrice() {
+    const opt = selectedVariant();
+    document.getElementById('sold_price').value = formatPrice(parseFloat(opt.dataset.price));
+    document.getElementById('sell_margin').value = parseInt(opt.dataset.margin, 10);
+    document.getElementById('sell_quantity').value = opt.dataset.max;
+    document.getElementById('sell_quantity').value = 1;
+}
+
+function recalcFromMargin(){
+    const buy = parseFloat(selectedVariant().dataset.buy);
+    const margin = parseFloat(document.getElementById('sell_margin').value) || 0;
+    document.getElementById('sold_price').value = formatPrice(buy * (1 + margin /100));
 }
 // PHP data → JS
 const stockData   = <?= json_encode($stock_data) ?>;
