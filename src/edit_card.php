@@ -21,34 +21,40 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $margin         = (float) $_POST['margin'];
     $sell_price     = round($buy_price * (1 + $margin / 100), 2);
 
-    try{
-        $stmt = $pdo->prepare("
-            UPDATE cards SET
-            language        = :language,
-            card_condition  = :card_condition,
-            quantity        = :quantity,
-            buy_price       = :buy_price,
-            sell_price      = :sell_price,
-            margin          = :margin
-            WHERE id        = :id
-        ");
+    if (CardCondition::tryFrom($card_condition) === null){
+        $error = 'Ungültiger Zustand.';
+    } elseif ($quantity < 0) {
+        $error = 'Menge darf nicht negativ sein.';
+    } else {
+        try{
+            $stmt = $pdo->prepare("
+                UPDATE cards SET
+                language        = :language,
+                card_condition  = :card_condition,
+                quantity        = :quantity,
+                buy_price       = :buy_price,
+                sell_price      = :sell_price,
+                margin          = :margin
+                WHERE id        = :id
+            ");
 
-         $stmt->execute([
-            ':language'       => $language,
-            ':card_condition' => $card_condition,
-            ':quantity'       => $quantity,
-            ':buy_price'      => $buy_price,
-            ':sell_price'     => $sell_price,
-            ':id'             => $id,
-            ':margin'         => $margin
-        ]);
+            $stmt->execute([
+                ':language'       => $language,
+                ':card_condition' => $card_condition,
+                ':quantity'       => $quantity,
+                ':buy_price'      => $buy_price,
+                ':sell_price'     => $sell_price,
+                ':id'             => $id,
+                ':margin'         => $margin
+            ]);
 
-        $success = 'Karte erfolgreich aktualisiert!';
-        $card = $pdo->prepare("SELECT * FROM cards WHERE id = :id");
-        $card->execute([':id' => $id]);
-        $card = $card->fetch(PDO::FETCH_ASSOC);
-    } catch(PDOException $e){
-        $error = 'Fehler: ' . $e->getMessage();
+            $success = 'Karte erfolgreich aktualisiert!';
+            $card = $pdo->prepare("SELECT * FROM cards WHERE id = :id");
+            $card->execute([':id' => $id]);
+            $card = $card->fetch(PDO::FETCH_ASSOC);
+        } catch(PDOException $e){
+            $error = 'Fehler: ' . $e->getMessage();
+        }
     }
 }
 require_once 'includes/header.php';
@@ -81,18 +87,18 @@ require_once 'includes/header.php';
 
     <label>Zustand:
         <select name="card_condition">
-            <?php foreach(['Mint', 'Near Mint', 'Excellent', 'Good', 'Played', 'Poor'] as $cond): ?>
-                <option value="<?= $cond ?>" <?= $card['card_condition'] === $cond ? 'selected' : '' ?>>
-                    <?= $cond ?>
+            <?php foreach (CardCondition::cases() as $cond): ?>
+                <option value="<?= htmlspecialchars($cond->value) ?>" <?= $card['card_condition'] === $cond->value ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($cond->value) ?>
                 </option>
             <?php endforeach; ?>        
         </select>
     </label><br><br>
 
-    <label>Menge: <input type="number" name="quantity" value="<?= $card['quantity'] ?>" min="0" required></label><br><br>
+    <label>Menge: <input type="number" name="quantity" value="<?= (int)$card['quantity'] ?>" min="0" required></label><br><br>
     <label>Einkaufspreis (€):
         <input type="text" name="buy_price" id="buy_price"
-            value="<?= number_format($card['buy_price'], 2, ',', '.') ?>"
+            value="<?= number_format($card['buy_price'], 2, ',', '') ?>"
             required oninput="calculateSellPrice()">
     </label><br><br>
     <label>Marge (%):
@@ -102,7 +108,7 @@ require_once 'includes/header.php';
     </label><br><br>
     <label>Verkaufspreis (€):
         <input type="text" id="sell_price" name="sell_price"
-            value="<?= number_format($card['sell_price'], 2, ',', '.') ?>"
+            value="<?= number_format($card['sell_price'], 2, ',', '') ?>"
             readonly style="background:#162030; color:var(--color-gold);">
     </label><br><br>
     <button type="submit">Speichern</button>
