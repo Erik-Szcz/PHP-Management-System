@@ -1,5 +1,6 @@
 <?php
 require_once 'includes/db.php';
+require_once 'includes/cardCondtion.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 if (!$id) { header('Location: index.php'); exit; }
@@ -14,7 +15,7 @@ $success = '';
 
 if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $language       = $_POST['language'];
-    $card_condition = $_POST['card_condition'];
+    $card_condition = $_POST['card_condition'] ?? '';
     $quantity       = (int) $_POST['quantity'];
     $buy_price      = (float) str_replace(',','.', $_POST['buy_price']);
     $margin         = (float) $_POST['margin'];
