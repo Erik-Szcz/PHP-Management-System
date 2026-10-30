@@ -1,6 +1,6 @@
 <?php
 require_once 'includes/db.php';
-require_once 'includes/cardCondtion.php';
+require_once 'includes/cardCondition.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 if (!$id) { header('Location: index.php'); exit; }

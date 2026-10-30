@@ -158,7 +158,7 @@ require_once 'includes/header.php';
                 <td>
                     <?php if ($in_stock): ?>
                     <table style="width:auto; box-shadow:none; margin:0;">
-                        <?php foreach ($variants as $v): ?>
+                        <?php foreach ($in_stock as $v): ?>
                             <tr>
                                 <td style="padding:2px 12px 2px 0;"><?= htmlspecialchars($v['card_condition']) ?> · <?= htmlspecialchars($v['language']) ?></td>
                                 <td style="padding:2px 12px 2px 0;"><?= (int)$v['quantity'] ?> St.</td>
@@ -206,7 +206,7 @@ require_once 'includes/header.php';
             </label>
 
             <label>Gewinn Marge (%):
-                <input type="number" id="sell_margin" value="<?= (int)$sell_default['margin'] ?> "oninput="recalcFromMargin()">
+                <input type="number" id="sell_margin" value="<?= (int)$sell_default['margin'] ?>" oninput="recalcFromMargin()">
             </label>
 
             <label>Plattform:
@@ -258,12 +258,6 @@ const gold = '#f5a623';
 const gridColor = 'rgba(255,255,255,0.07)';
 const tickColor = '#888';
 
-function updatePrice(select){
-    const opt = select.options[select.selectedIndex];
-    document.getElementById('sold_price').value = parseFloat(opt.dataset.price).toFixed(2).replace('.', ',');
-    document.getElementById('quantity').max = opt.dataset.max;
-}
-
 function makeLine(id, data, label, color) {
     if (!data || data.length === 0) return;
     new Chart(document.getElementById(id), {
@@ -304,7 +298,7 @@ function selectedVariant() {
     return document.getElementById('sell_variant').selectedOptions[0];
 }
 
-function fromatPrice(n){
+function formatPrice(n){
     return n.toFixed(2).replace('.', ',');
 }
 
@@ -312,7 +306,7 @@ function updatePrice() {
     const opt = selectedVariant();
     document.getElementById('sold_price').value = formatPrice(parseFloat(opt.dataset.price));
     document.getElementById('sell_margin').value = parseInt(opt.dataset.margin, 10);
-    document.getElementById('sell_quantity').value = opt.dataset.max;
+    document.getElementById('sell_quantity').max = opt.dataset.max;
     document.getElementById('sell_quantity').value = 1;
 }
 

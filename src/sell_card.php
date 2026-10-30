@@ -12,10 +12,10 @@ $sold_price = (float) str_replace(',', '.', $_POST['sold_price'] ?? '');
 $platform   = $_POST['platform'] ?? '';
 
 // Check card exists and has enough stock
-$allowed_platforms = ['Website', 'ebay', 'Cardmarket', 'Privat'];
+$allowed_platforms = ['Website', 'Ebay', 'Cardmarket', 'Privat'];
 
 if ($quantity < 1 || $sold_price < 0 || !in_array($platform, $allowed_platforms, true)) {
-    die("Ungültige Menge oder Karte nicht gefunden.");
+    die("Ungültige Menge, Preis oder Plattform.");
 }
 
 try {
@@ -39,7 +39,8 @@ try {
                 ':platform'   => $platform
                 ]);
 
-    $stmt = $pdo->prepare("UPDATE cards SET quantity = quantity - :qty WHERE id = :id");            
+    $stmt = $pdo->prepare("UPDATE cards SET quantity = quantity - :qty WHERE id = :id");
+    $stmt->execute([':qty' => $quantity, ':id' => $card_id]);            
     $pdo->commit();
     header('Location: card.php?ptcg_id=' . urlencode($card['ptcg_id']));
     exit;
