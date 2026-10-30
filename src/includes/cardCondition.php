@@ -1,6 +1,8 @@
 <?php
+
 //Single source of truth for card conditions
-enum CardCondition: string{
+enum CardCondition: string
+{
     case Mint = 'Mint';
     case NearMint = 'Near Mint';
     case Excellent = 'Excellent';

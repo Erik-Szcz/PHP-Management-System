@@ -14,16 +14,19 @@ $variants = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $total_quantity = array_sum(array_column($variants, 'quantity'));
 $languages = array_unique(array_column($variants, 'language'));
 
-if (empty($variants)) die("Karte nicht gefunden.");
+if (empty($variants)) {
+    die("Karte nicht gefunden.");
+}
 $card = $variants[0];
 
-$in_stock = array_values(array_filter($variants, fn($v) => $v['quantity'] > 0));
+$in_stock = array_values(array_filter($variants, fn ($v) => $v['quantity'] > 0));
 $sell_default = $in_stock[0] ?? null;
 
 
 // Fetch card image and details from PTCG API
-function fetch_tcgdex_card(string $id, array $langs): ?array{
-    foreach ($langs as $lang){
+function fetch_tcgdex_card(string $id, array $langs): ?array
+{
+    foreach ($langs as $lang) {
         $ch = curl_init("https://api.tcgdex.net/v2/$lang/cards/" . urlencode($id));
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -33,9 +36,9 @@ function fetch_tcgdex_card(string $id, array $langs): ?array{
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        if ($body !== false && $code === 200){
+        if ($body !== false && $code === 200) {
             $data = json_decode($body, true);
-            if(!empty($data['image'])){
+            if (!empty($data['image'])) {
                 return $data;
             }
         }
@@ -79,7 +82,7 @@ $stmt->execute([':ptcg_id' => $ptcg_id]);
 $sale_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $all_events = array_merge($purchase_events, $sale_events);
-usort($all_events, fn($a, $b) => strtotime($a['event_date']) - strtotime($b['event_date']));
+usort($all_events, fn ($a, $b) => strtotime($a['event_date']) - strtotime($b['event_date']));
 
 $daily = [];
 foreach ($all_events as $ev) {
@@ -317,9 +320,9 @@ function recalcFromMargin(){
 }
 // PHP data → JS
 const stockData   = <?= json_encode($stock_data) ?>;
-const profitData = <?= json_encode(array_map(fn($r) => ['x' => $r['sale_date'], 'y' => $r['profit']],    $profit_data)) ?>;
-const buyData    = <?= json_encode(array_map(fn($r) => ['x' => $r['buy_date'],  'y' => $r['buy_price']], $buy_price_data)) ?>;
-const sellData   = <?= json_encode(array_map(fn($r) => ['x' => $r['sale_date'], 'y' => $r['sold_price']],$sell_price_data)) ?>;
+const profitData = <?= json_encode(array_map(fn ($r) => ['x' => $r['sale_date'], 'y' => $r['profit']], $profit_data)) ?>;
+const buyData    = <?= json_encode(array_map(fn ($r) => ['x' => $r['buy_date'],  'y' => $r['buy_price']], $buy_price_data)) ?>;
+const sellData   = <?= json_encode(array_map(fn ($r) => ['x' => $r['sale_date'], 'y' => $r['sold_price']], $sell_price_data)) ?>;
 
 makeLine('chartProfit', profitData,  'Gewinn (€)',        '#4caf50');
 makeLine('chartStock',  stockData,   'Lagerbestand',      gold);

@@ -1,20 +1,20 @@
 <?php
 require_once 'includes/db.php';
 require_once 'includes/cardCondition.php';
-
+require_once 'includes/language.php';
 $error = '';
 $success = '';
 
 
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST'){
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ptcg_id = trim($_POST['ptcg_id']);
     $name = trim($_POST['name']);
     $set_id = trim($_POST['set_id']);
     $set_name = trim($_POST['set_name']);
     $number = trim($_POST['number']);
     $rarity = trim($_POST['rarity']);
-    $language = trim($_POST['language']);
+    $language = trim($_POST['language'] ?? '');
     $card_condition = trim($_POST['card_condition']);
     $quantity = (int) $_POST['quantity'];
     $buy_price = (float) str_replace(',', '.', trim($_POST['buy_price']));
@@ -25,10 +25,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'){
         $error = 'Bitte alle Pflichtfelder ausfüllen.';
     } elseif (CardCondition::tryFrom($card_condition) === null) {
         $error = 'Ungültiger Zustand.';
+    } elseif (Language::tryFrom($language) === null) {
+        $error = 'Ungültige Sprache.';
     } elseif ($quantity < 1) {
         $error = 'Menge muss mindestens 1 sein.';
     } else {
-        try{
+        try {
             $stmt = $pdo->prepare("INSERT INTO cards(ptcg_id, name, set_id, set_name, number, rarity, language, card_condition, quantity, buy_price, sell_price, margin)
                 VALUES 
                     (:ptcg_id, :name, :set_id, :set_name, :number, :rarity, :language, :card_condition, :quantity, :buy_price, :sell_price, :margin)
@@ -49,20 +51,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'){
                 ':margin'          => $margin,
             ]);
             $success = 'Karte erfolgreich hinzugefügt';
+        } catch (PDOException $e) {
+            error_log('add_card: ' . $e->getMessage());
+            die('Karte konnte nicht gespeichert werden.');
         }
-        catch(PDOException $e){
-            $error = 'Fehler: ' . $e->getMessage();
-        }
-    }    
+    }
 }
 
 $title = 'Karte hinzufügen';
 require_once 'includes/header.php';
 ?>
-    <?php if($error): ?>
+    <?php if ($error): ?>
         <div class="alert-error"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
-    <?php if($success): ?>
+    <?php if ($success): ?>
         <div class="alert-success"><?= htmlspecialchars($success) ?></div>
     <?php endif; ?>    
 
@@ -90,9 +92,9 @@ require_once 'includes/header.php';
     <select name="rarity" id="rarity" style="display:none;"></select>
     <label>Sprache:
         <select name="language">
-            <option value="Deutsch">Deutsch</option>
-            <option value="Englisch">Englisch</option>
-            <option value="Japanisch">Japanisch</option>
+            <?php foreach (Language::cases() as $lang): ?>
+                <option value="<?= htmlspecialchars($lang->value) ?>"><?= htmlspecialchars($lang->value) ?></option>
+            <?php endforeach; ?>
         </select>
     </label>
     <label>Zustand:

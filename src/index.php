@@ -24,7 +24,7 @@ require_once 'includes/header.php'
 ?>
 
 
-<h1>Yugi Shop Inventar</h1>
+<h1>Pokemon Shop Inventar</h1>
 
 <table border="1" cellpadding="8">
     <tr>
@@ -35,12 +35,11 @@ require_once 'includes/header.php'
         <th>Anzahl</th>
         <th>minimaler Einkaufspreis</th>
         <th>minimaler Verkaufspreis</th>
-        <th>Auktionen</th>
         <th>Sprache</th>
     </tr>
 
     <?php foreach ($cards as $card): ?>
-    <tr onclick="window.location='card.php?ptcg_id=<?= urlencode($card['ptcg_id'] )?>'" style="cursor:pointer;">
+    <tr onclick="window.location='card.php?ptcg_id=<?= urlencode($card['ptcg_id'])?>'" style="cursor:pointer;">
         <td class="center"><?=htmlspecialchars($card['name'])  ?></td>
         <td class="center"><?=htmlspecialchars($card['number'])  ?></td>
         <td class="center"><?=htmlspecialchars($card['set_name'])  ?></td>
@@ -48,7 +47,6 @@ require_once 'includes/header.php'
         <td class="center"><?=htmlspecialchars($card['total_quantity'])  ?></td>
         <td class="center"><?=number_format($card['buy_price'], 2, ',', '.') ?> €</td>
         <td class="center"><?=number_format($card['sell_price'], 2, ',', '.') ?> €</td>
-        <td class="center"><?=htmlspecialchars($card['auction_quantity'] ?? '0') ?></td>
         <td class="center"><?=htmlspecialchars($card['language']) ?></td>
     </tr> 
     <?php endforeach; ?>

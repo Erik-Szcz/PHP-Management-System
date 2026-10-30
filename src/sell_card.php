@@ -1,4 +1,5 @@
 <?php
+
 require_once 'includes/db.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -25,7 +26,7 @@ try {
     $stmt->execute([':id' => $card_id]);
     $card = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if(!$card || $quantity > $card['quantity']){
+    if (!$card || $quantity > $card['quantity']) {
         $pdo->rollBack();
         die("Ungültige Menge oder Karte nicht gefunden.");
     }
@@ -40,12 +41,15 @@ try {
                 ]);
 
     $stmt = $pdo->prepare("UPDATE cards SET quantity = quantity - :qty WHERE id = :id");
-    $stmt->execute([':qty' => $quantity, ':id' => $card_id]);            
+    $stmt->execute([':qty' => $quantity, ':id' => $card_id]);
     $pdo->commit();
     header('Location: card.php?ptcg_id=' . urlencode($card['ptcg_id']));
     exit;
 
 } catch (PDOException $e) {
-    $pdo->rollBack();
-    die("Fehler: " . $e->getMessage());
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    error_log('sell_card: ' . $e->getMessage());
+    die('Verkauf konnte nicht gespeichert werden.');
 }

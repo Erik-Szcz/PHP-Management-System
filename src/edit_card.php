@@ -1,32 +1,41 @@
 <?php
 require_once 'includes/db.php';
 require_once 'includes/cardCondition.php';
+require_once 'includes/language.php';
 
 $id = (int) ($_GET['id'] ?? 0);
-if (!$id) { header('Location: index.php'); exit; }
+if (!$id) {
+    header('Location: index.php');
+    exit;
+}
 
 $stmt = $pdo->prepare("SELECT * FROM cards WHERE id = :id");
 $stmt->execute([':id' => $id]);
 $card = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$card) { header('Location: index.php'); exit; }
+if (!$card) {
+    header('Location: index.php');
+    exit;
+}
 
 $error = '';
 $success = '';
 
-if($_SERVER['REQUEST_METHOD'] === 'POST'){
-    $language       = $_POST['language'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $language       = $_POST['language'] ?? '';
     $card_condition = $_POST['card_condition'] ?? '';
     $quantity       = (int) $_POST['quantity'];
-    $buy_price      = (float) str_replace(',','.', $_POST['buy_price']);
+    $buy_price      = (float) str_replace(',', '.', $_POST['buy_price']);
     $margin         = (float) $_POST['margin'];
     $sell_price     = round($buy_price * (1 + $margin / 100), 2);
 
-    if (CardCondition::tryFrom($card_condition) === null){
+    if (CardCondition::tryFrom($card_condition) === null) {
         $error = 'Ungültiger Zustand.';
+    } elseif (Language::tryFrom($language) === null) {
+        $error = 'Ungültige Sprache.';
     } elseif ($quantity < 0) {
         $error = 'Menge darf nicht negativ sein.';
     } else {
-        try{
+        try {
             $stmt = $pdo->prepare("
                 UPDATE cards SET
                 language        = :language,
@@ -52,8 +61,9 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
             $card = $pdo->prepare("SELECT * FROM cards WHERE id = :id");
             $card->execute([':id' => $id]);
             $card = $card->fetch(PDO::FETCH_ASSOC);
-        } catch(PDOException $e){
-            $error = 'Fehler: ' . $e->getMessage();
+        } catch (PDOException $e) {
+            error_log('edit_card: ' . $e->getMessage());
+            die('Änderung konnte nicht gespeichert werden.');
         }
     }
 }
@@ -69,7 +79,7 @@ require_once 'includes/header.php';
     <div class="alert-error"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
         
-<?php if($success): ?>
+<?php if ($success): ?>
     <div class="alert-success"><?= htmlspecialchars($success) ?></div>
 <?php endif; ?>
         
@@ -79,9 +89,11 @@ require_once 'includes/header.php';
 <form method="POST">
     <label>Sprache:
         <select name="language">
-            <option value="Deutsch" <?= $card['language'] === 'Deutsch' ? 'selected' : '' ?>>Deutsch</option>
-            <option value="Englisch" <?= $card['language'] === 'Englisch' ? 'selected' : '' ?>>Englisch</option>
-            <option value="Japanisch" <?= $card['language'] === 'Japanisch' ? 'selected' : '' ?>>Japanisch</option>
+            <?php foreach (Language::cases() as $lang): ?>
+                <option value="<?= htmlspecialchars($lang->value) ?>" <?= $card['language'] === $lang->value ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($lang->value) ?>
+                </option>
+            <?php endforeach; ?>
         </select>
     </label><br><br>
 

@@ -1,7 +1,7 @@
 <?php
 require_once 'includes/db.php';
 
-$id = (int) $_GET['id'];
+$id = (int) ($_GET['id'] ?? 0);
 
 $stmt = $pdo->prepare("SELECT * FROM cards WHERE id = :id");
 $stmt->execute([':id' => $id]);
@@ -17,17 +17,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($remove_quantity <= 0) {
         $error = 'Bitte eine gültige Menge eingeben.';
-    } elseif ($remove_quantity >= $card['quantity']) {
-        // Remove all — delete the whole row
-        $stmt = $pdo->prepare("DELETE FROM cards WHERE id = :id");
-        $stmt->execute([':id' => $id]);
-        header('Location: index.php');
-        exit;
     } else {
-        // Remove only some — subtract from quantity
+        $remove = min($remove_quantity, (int) $card['quantity']);
         $stmt = $pdo->prepare("UPDATE cards SET quantity = quantity - :remove WHERE id = :id");
-        $stmt->execute([':remove' => $remove_quantity, ':id' => $id]);
-        header('Location: index.php');
+        $stmt->execute([':remove' => $remove, ':id' => $id]);
+        header('Location: card.php?ptcg_id=' . urlencode($card['ptcg_id']));
         exit;
     }
 }
@@ -53,10 +47,10 @@ require_once 'includes/header.php';
     <label>Wie viele möchtest du entfernen?
         <input type="number" name="remove_quantity" min="1" max="<?= (int)$card['quantity'] ?>" value="1">
     </label><br><br>
-    <p style="color:grey; font-size:0.9em">Wenn du alle <?= (int)$card['quantity'] ?> entfernst, wird die Karte komplett gelöscht.</p>
+    <p style="color:grey; font-size:0.9em">Wenn du alle <?= (int)$card['quantity'] ?> entfernst, verschwindet die Karte aus dem Inventar. Die Verkaufshistorie bleibt erhalten.</p>
     <button type="submit" style="color:white; background:red; padding:8px 16px;">
         Entfernen
     </button>
-    <a href="index.php">Abbrechen</a>
+    <a href="card.php?ptcg_id=<?= urlencode($card['ptcg_id']) ?>">Abbrechen</a>
 </form>
 <?php require_once 'includes/footer.php'; ?>
