@@ -1,5 +1,6 @@
 <?php
 require_once 'includes/db.php';
+require_once 'includes/cardCondition.php';
 
 $error = '';
 $success = '';
@@ -15,13 +16,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'){
     $rarity = trim($_POST['rarity']);
     $language = trim($_POST['language']);
     $card_condition = trim($_POST['card_condition']);
-    $quantity = trim($_POST['quantity']);
+    $quantity = (int) $_POST['quantity'];
     $buy_price = (float) str_replace(',', '.', trim($_POST['buy_price']));
     $margin     = (float) $_POST['margin'];
     $sell_price = round($buy_price * (1 + $margin / 100), 2);
 
     if (empty($ptcg_id) || empty($name) || empty($set_id) || empty($card_condition)) {
         $error = 'Bitte alle Pflichtfelder ausfüllen.';
+    } elseif (CardCondition::tryFrom($card_condition) === null) {
+        $error = 'Ungültiger Zustand.';
+    } elseif ($quantity < 1) {
+        $error = 'Menge muss mindestens 1 sein.';
     } else {
         try{
             $stmt = $pdo->prepare("INSERT INTO cards(ptcg_id, name, set_id, set_name, number, rarity, language, card_condition, quantity, buy_price, sell_price, margin)
@@ -92,30 +97,30 @@ require_once 'includes/header.php';
     </label>
     <label>Zustand:
         <select name="card_condition" required>
-            <option value="Mint">Mint</option>
-            <option value="Near Mint">Near Mint</option>
-            <option value="Excellent">Excellent</option>
-            <option value="Good">Good</option>
-            <option value="Light Played">Played</option>
-            <option value="Played">Played</option>
-            <option value="Poor">Poor</option>
+            <?php foreach (CardCondition::cases() as $cond): ?>
+                <option value="<?= htmlspecialchars($cond->value) ?>"><?= htmlspecialchars($cond->value) ?></option>
+            <?php endforeach; ?>
         </select>
     </label><br><br>
-    <label>Menge: <input type="number" name="quantity" value="1" min="0" required></label><br><br>
-    <label>Einkaufspreis (€): <input type="text" name="buy_price" id="buy_price" placeholder="0,00" required></label><br><br>
-    <label>Marge (%): <input type="number" name="margin" id="margin" value="20" min="0" step="1"></label><br><br>
+    <label>Menge: <input type="number" name="quantity" value="1" min="1" required></label><br><br>
+    <label>Einkaufspreis (€): <input type="text" name="buy_price" id="buy_price" placeholder="0,00" required oninput="calculateSellPrice()"></label><br><br>
+    <label>Marge (%): <input type="number" name="margin" id="margin" value="20" min="0" step="1" oninput="calculateSellPrice()"></label><br><br>
+    <label>Verkaufspreis (€): <input type="text" id="sell_price_preview" readonly style="color:var(--color-gold);"></label><br><br>
+     
     <button type="submit">Karte speichern</button>
 </form>
 
 
 <script>
 let debounceTimer;
+let cachedCards = [];
+
 function debounceSearch() {
     clearTimeout(debounceTimer);
     const input = document.getElementById('search').value.trim();
     const list = document.getElementById('suggestions');
     if (input.length < 3) { list.style.display = 'none'; return; }
-    debounceTimer = setTimeout(() => liveSearch(input), 4);
+    debounceTimer = setTimeout(() => liveSearch(input), 300);
 }
 
 async function liveSearch(name) {
@@ -130,14 +135,15 @@ async function liveSearch(name) {
 
         if (uniqueNames.length === 0) { list.style.display = 'none'; return; }
 
-        list.innerHTML = uniqueNames.map(n =>
-            `<li onclick="selectName('${n}')"
-                style="padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--color-border);"
-                onmouseover="this.style.background='var(--color-hover)'"
-                onmouseout="this.style.background=''">
-                ${n}
-            </li>`
-        ).join('');
+        // Build the list with DOM methods: names like "Farfetch'd" can't break it,
+        // and API data is never parsed as HTML (no XSS)
+        list.innerHTML = '';
+        uniqueNames.forEach(n => {
+            const li = document.createElement('li');
+            li.textContent = n;
+            li.addEventListener('click', () => selectName(n));
+            list.appendChild(li);
+        });
         list.style.display = 'block';
     } catch(e) {
         console.error('Suchfehler:', e);
@@ -196,6 +202,7 @@ function calculateSellPrice() {
     const buyPrice  = parseFloat(document.getElementById('buy_price').value.replace(',', '.')) || 0;
     const margin    = parseFloat(document.getElementById('margin').value) || 0;
     const sellPrice = buyPrice * (1 + margin / 100);
+    document.getElementById('sell_price_preview').value = sellPrice.toFixed(2).replace('.', ',');
 }
 </script>
 
